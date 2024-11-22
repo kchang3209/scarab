@@ -30,6 +30,7 @@
 
 #include "pref_common.h"
 
+/*
 typedef struct StridePC_Table_Entry_Struct {
   Flag trained;
   Flag valid;
@@ -44,17 +45,34 @@ typedef struct StridePC_Table_Entry_Struct {
   Counter pref_sent;
   Counter last_access;  // for lru
 } StridePC_Table_Entry;
+*/
+#define PREF_OFFSETPC_TRAINNUM  3  // Number of consistent offsets to consider the entry trained
+#define PREF_OFFSETPC_DEGREE    4  // Number of prefetches to issue per trained entry
 
-typedef struct Pref_StridePC_Struct {
+// Final Lab
+typedef struct OffsetPC_Table_Entry_Struct{
+    Addr load_addr;         // Load address for which prefetching is being done
+    Addr offset;            // Offset used for prefetching
+    Flag valid;             // Whether this table entry is valid
+    Flag trained;           // Whether this entry has been trained
+    int train_num;          // Number of training instances for this entry
+    Addr last_addr;         // The last accessed address
+    Addr pref_last_index;   // Last predicted address
+    int pref_sent;          // Counter for how many prefetches have been sent
+    // Other fields as necessary
+} OffsetPC_Table_Entry;
+
+//Final Lab modification
+typedef struct Pref_OffsetPC_Struct {
   HWP_Info*             hwp_info;
-  StridePC_Table_Entry* stride_table;
+  OffsetPC_Table_Entry* offset_table;   
   CacheLevel        type;
-} Pref_StridePC;
+} Pref_OffsetPC;
 
 typedef struct{
-  Pref_StridePC* stridepc_hwp_core_ul1;
-  Pref_StridePC* stridepc_hwp_core_umlc;
-} stridepc_prefetchers;
+  Pref_OffsetPC* offsetpc_hwp_core_ul1;
+  Pref_OffsetPC* offsetpc_hwp_core_umlc;
+} offsetpc_prefetchers;
 
 /*************************************************************/
 /* HWP Interface */
@@ -72,9 +90,11 @@ void pref_stridepc_umlc_hit(uns8 proc_id, Addr lineAddr, Addr loadPC,
 
 /*************************************************************/
 /* Internal Function */
-void init_stridepc(HWP* hwp, Pref_StridePC* stridepc_hwp_core);
-void pref_stridepc_train(Pref_StridePC* stridepc_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC,
+void init_offsetpc(HWP* hwp, Pref_OffsetPC* offsetpc_hwp_core);
+void pref_offsetpc_train(Pref_OffsetPC* offsetpc_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC,
                              Flag is_hit);
+
+      
 /*************************************************************/
 /* Misc functions */
 
