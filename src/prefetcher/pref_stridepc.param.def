@@ -49,12 +49,10 @@
 
 */
 
-DEF_PARAM(pref_stridepc_on                , PREF_STRIDEPC_ON              , Flag   , Flag      , FALSE       ,      )
-DEF_PARAM(pref_offsetpc_on                , PREF_OFFSETPC_ON              , Flag   , Flag      , FALSE       ,      )  // Final Lab Modification
+DEF_PARAM(pref_stridepc_on                , PREF_STRIDEPC_ON              , Flag   , Flag      , FALSE       ,      ) 
 DEF_PARAM(debug_pref_stridepc             , DEBUG_PREF_STRIDEPC           , Flag   , Flag      , FALSE       ,      ) 
 // the size of the stridepc table
-DEF_PARAM(pref_stridepc_table_n           , PREF_STRIDEPC_TABLE_N         , uns    , uns       , 1024        ,      )
-DEF_PARAM(pref_offsetpc_table_n           , PREF_OFFSETPC_TABLE_N         , uns    , uns       , 1024        ,      )  // Final Lab Modification
+DEF_PARAM(pref_stridepc_table_n           , PREF_STRIDEPC_TABLE_N         , uns    , uns       , 1024        ,      ) 
      // Number of prefetches sent out on a miss/prefetch
 DEF_PARAM(pref_stridepc_degree            , PREF_STRIDEPC_DEGREE          , uns    , uns       , 4           ,      ) 
 DEF_PARAM(pref_stridepc_distance          , PREF_STRIDEPC_DISTANCE        , uns    , uns       , 16          ,      ) 

@@ -139,17 +139,18 @@
 ### prefetcher
 # Kept same as Kaby Lake
 --pref_framework_on             1
---pref_stream_on                1
+--pref_stridepc_on              1
 --pref_train_on_pref_misses     0
 --pref_oracle_train             0
 --pref_ul1req_queue_overwrite_on_full 1
 
---stream_length                 64
---stream_prefetch_n             4
---stream_start_dis              1
---stream_train_num              4	
---stream_create_on_dc_miss      0
---stream_create_on_l1_miss      1
+
+--pref_stridepc_table_n         512
+--pref_stridepc_degree          1
+--pref_stridepc_distance        16
+--pref_stridepc_useloadaddr     0
+--pref_stridepc_trainnum        2
+--pref_stridepc_startdis        4
 
 --pref_throttlefb_on=1
 --pref_acc_thresh_1=0.75

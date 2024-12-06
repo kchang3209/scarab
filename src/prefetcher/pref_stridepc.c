@@ -26,8 +26,6 @@
  * Description  : Stride Prefetcher - Based on load's PC address
  ***************************************************************************************/
 
-// test test
-
 #include "debug/debug_macros.h"
 #include "debug/debug_print.h"
 #include "globals/global_defs.h"
@@ -64,117 +62,178 @@
 /* Macros */
 #define DEBUG(args...) _DEBUG(DEBUG_PREF_STRIDEPC, ##args)
 
-/*stridepc_prefetchers stridepc_prefetche_array;*/
-offsetpc_prefetchers offsetpc_prefetch_array;
+stridepc_prefetchers stridepc_prefetche_array;
 
-/*void pref_stridepc_init(HWP* hwp) {
+int roundnum = 0;       // check with ROHIT, does global variable get initialized every time this code is executed?
+int roundmax = 100;      // per BO paper
+int scorethreshold = 3;
+int best_offset;
 
-  if(!PREF_STRIDEPC_ON)
+int value_list[] = {1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16, 18, 20, 24, 25, 27, 30, 32, 36, 40};
+// , 45, 48, 50, 54, 60, 64, 72, 75, 80, 81, 90, 96, 100, 108, 120, 125, 128, 135,
+// 144, 150, 160, 162, 180, 192, 200, 216, 225, 240, 243, 250, 256};
+
+int offsetnum = sizeof(value_list)/sizeof(value_list[0]);
+
+Offset_List offset_candidates[21];
+
+
+void pref_stridepc_init(HWP* hwp) {
+
+  if(!PREF_STRIDEPC_ON){
     return;
+  }
   hwp->hwp_info->enabled = TRUE;
-
+  //Dcache: L1
+  //MLC: L2
+  //LLC or L1: L3
+  //init_offset_list();
+  for (int i = 0; i < offsetnum; i++){
+    offset_candidates[i].value = value_list[i];
+    offset_candidates[i].tested = FALSE;  // reset candidate to 'not yet tested'
+  }
+  //if L2 prefetcher is on
   if(PREF_UMLC_ON){
     stridepc_prefetche_array.stridepc_hwp_core_umlc        = (Pref_StridePC*)malloc(sizeof(Pref_StridePC) * NUM_CORES);
     stridepc_prefetche_array.stridepc_hwp_core_umlc->type  = UMLC;
     init_stridepc(hwp, stridepc_prefetche_array.stridepc_hwp_core_umlc);
   }
+  //if L3 prefetcher is on
   if(PREF_UL1_ON){
     stridepc_prefetche_array.stridepc_hwp_core_ul1        = (Pref_StridePC*)malloc(sizeof(Pref_StridePC) * NUM_CORES);
     stridepc_prefetche_array.stridepc_hwp_core_ul1->type  = UL1;
     init_stridepc(hwp, stridepc_prefetche_array.stridepc_hwp_core_ul1);
   }
 
-
-
-}*/
-
-void pref_offsetpc_init(HWP* hwp) {
-
-    if (!PREF_OFFSETPC_ON) // Updated constant for offset prefetcher
-        return;
-
-    hwp->hwp_info->enabled = TRUE;
-
-    if (PREF_UMLC_ON) {
-        offsetpc_prefetch_array.offsetpc_hwp_core_umlc = (Pref_OffsetPC*)malloc(sizeof(Pref_OffsetPC) * NUM_CORES);
-        offsetpc_prefetch_array.offsetpc_hwp_core_umlc->type = UMLC;
-        init_offsetpc(hwp, offsetpc_prefetch_array.offsetpc_hwp_core_umlc); // Call new initialization function
-    }
-
-    if (PREF_UL1_ON) {
-        offsetpc_prefetch_array.offsetpc_hwp_core_ul1 = (Pref_OffsetPC*)malloc(sizeof(Pref_OffsetPC) * NUM_CORES);
-        offsetpc_prefetch_array.offsetpc_hwp_core_ul1->type = UL1;
-        init_offsetpc(hwp, offsetpc_prefetch_array.offsetpc_hwp_core_ul1); // Call new initialization function
-    }
 }
 
-
-/*
 void init_stridepc(HWP* hwp, Pref_StridePC* stridepc_hwp_core) {
   uns8 proc_id;
 
   for(proc_id = 0; proc_id < NUM_CORES; proc_id++) {
     stridepc_hwp_core[proc_id].hwp_info     = hwp->hwp_info;
     stridepc_hwp_core[proc_id].stride_table = (StridePC_Table_Entry*)calloc(
-      PREF_StridePC_TABLE_N, sizeof(StridePC_Table_Entry));
+      PREF_STRIDEPC_TABLE_N, sizeof(StridePC_Table_Entry));
   }
-}
-*/
-void init_offsetpc(HWP* hwp, Pref_OffsetPC* offsetpc_hwp_core) {
-    uns8 proc_id;
 
-    for (proc_id = 0; proc_id < NUM_CORES; proc_id++) {
-        offsetpc_hwp_core[proc_id].hwp_info = hwp->hwp_info;
-        offsetpc_hwp_core[proc_id].offset_table = 
-            (OffsetPC_Table_Entry*)calloc(PREF_STRIDEPC_TABLE_N, sizeof(OffsetPC_Table_Entry));
-    }
 }
+
 
 
 void pref_stridepc_ul1_hit(uns8 proc_id, Addr lineAddr, Addr loadPC,
                            uns32 global_hist) {
-  pref_stridepc_train(&offsetpc_prefetch_array.offsetpc_hwp_core_ul1[proc_id], proc_id, lineAddr, loadPC, TRUE);
+  pref_stridepc_train(&stridepc_prefetche_array.stridepc_hwp_core_ul1[proc_id], proc_id, lineAddr, loadPC, TRUE);
 }
 
 void pref_stridepc_ul1_miss(uns8 proc_id, Addr lineAddr, Addr loadPC,
                             uns32 global_hist) {
-  pref_stridepc_train(&offsetpc_prefetch_array.offsetpc_hwp_core_ul1[proc_id], proc_id, lineAddr, loadPC, FALSE);
+  pref_stridepc_train(&stridepc_prefetche_array.stridepc_hwp_core_ul1[proc_id], proc_id, lineAddr, loadPC, FALSE);
 }
 
 void pref_stridepc_umlc_hit(uns8 proc_id, Addr lineAddr, Addr loadPC,
                            uns32 global_hist) {
-  pref_stridepc_train(&offsetpc_prefetch_array.offsetpc_hwp_core_umlc[proc_id], proc_id, lineAddr, loadPC, TRUE);
+  pref_stridepc_train(&stridepc_prefetche_array.stridepc_hwp_core_umlc[proc_id], proc_id, lineAddr, loadPC, TRUE);
 }
 
 void pref_stridepc_umlc_miss(uns8 proc_id, Addr lineAddr, Addr loadPC,
                             uns32 global_hist) {
-  pref_stridepc_train(&offsetpc_prefetch_array.offsetpc_hwp_core_umlc[proc_id], proc_id, lineAddr, loadPC, FALSE);
+  pref_stridepc_train(&stridepc_prefetche_array.stridepc_hwp_core_umlc[proc_id], proc_id, lineAddr, loadPC, FALSE);
 }
 
-/*void pref_stridepc_train(Pref_StridePC* stridepc_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC,
+
+//************************************************************************//
+//*************************  BEST OFFSET TRAIN  **************************//
+//************************************************************************//
+// CSE220 Fall 2024
+// Best Offset Prefetcher modification
+void pref_stridepc_train(Pref_StridePC* stridepc_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC,
                              Flag is_hit) {
   int ii;
   int idx = -1;
-
   Addr                  lineIndex = lineAddr >> LOG2(DCACHE_LINE_SIZE);
   StridePC_Table_Entry* entry     = NULL;
-
   int stride;
-
   if(loadPC == 0) {
     return;  // no point hashing on a null address
   }
+
+  int current_offset = -1; 
+  int current_offset_index = -1;
+
+  //select current offset for testing
+  for (int bocount = 0; bocount < offsetnum; bocount++){
+    if(!offset_candidates[bocount].tested){
+      current_offset = offset_candidates[bocount].value;
+      current_offset_index = bocount;
+      offset_candidates[bocount].tested = TRUE;
+      break;
+    }
+  }
+
+  //if all offsets tested, reset, roundnum++
+  if(current_offset == -1){
+    for (int i = 0; i < offsetnum; i++){
+      offset_candidates[i].tested = FALSE;  // reset candidate to 'not yet tested'
+    }
+    roundnum += 1;
+    if (roundnum == roundmax){
+      //get_best_offset();
+      int temp_score = -1;
+      for (int i = 0; i < offsetnum; i++){
+        //only update best_offset if score is higher than scorethreshold
+        if (offset_candidates[i].score > temp_score){
+          temp_score = offset_candidates[i].score;
+          if (temp_score >= scorethreshold){
+            best_offset = offset_candidates[i].value;
+          }
+        }
+        offset_candidates[i].score  = 0;  // only reset candidate score at getting best offset because scores accumulate and they are not reset in every round
+      }
+      roundnum = 0;
+    }
+  } else {
+    //else check if X-d is in table, if yes, score++
+    // Trying Binary Search, however we realized List isn't sorted.
+    // int low = 0 , high = PREF_STRIDEPC_TABLE_N - 1;
+    // while (low <= high){
+    //   int mid = low +(high-low)/2;
+    //   if(stridepc_hwp->stride_table[mid].load_addr == (loadPC-current_offset) && stridepc_hwp->stride_table[ii].valid) {    
+    //     offset_candidates[current_offset_index].score += 1;
+    //   }
+    //   else if (stridepc_hwp->stride_table[mid].load_addr < (loadPC-current_offset) && stridepc_hwp->stride_table[ii].valid){
+    //     low = mid + 1;
+    //   }
+    //   else{
+    //     high = mid - 1;
+    //   }
+    // }
+    for(ii = 0; ii < PREF_STRIDEPC_TABLE_N; ii++) {
+      if(stridepc_hwp->stride_table[ii].load_addr == (loadPC-current_offset) && stridepc_hwp->stride_table[ii].valid) {
+        offset_candidates[current_offset_index].score += 1;
+        break;
+      }
+    }
+  }
+
+  // Search for a matching entry
   for(ii = 0; ii < PREF_STRIDEPC_TABLE_N; ii++) {
     if(stridepc_hwp->stride_table[ii].load_addr == loadPC &&
        stridepc_hwp->stride_table[ii].valid) {
       idx = ii;
       break;
     }
+
   }
+
+  // If no entry is found, allocate a new one
   if(idx == -1) {
-    if(is_hit) {  // ONLY TRAIN on hit
+
+    //ONLY TRAIN on miss
+    if(is_hit) {  
       return;
     }
+
+    // Find an unused or LRU entry
     for(ii = 0; ii < PREF_STRIDEPC_TABLE_N; ii++) {
       if(!stridepc_hwp->stride_table[ii].valid) {
         idx = ii;
@@ -185,9 +244,11 @@ void pref_stridepc_umlc_miss(uns8 proc_id, Addr lineAddr, Addr loadPC,
         idx = ii;
       }
     }
+
+    // Initialize the new entry
     stridepc_hwp->stride_table[idx].trained     = FALSE;
     stridepc_hwp->stride_table[idx].valid       = TRUE;
-    stridepc_hwp->stride_table[idx].stride      = 0;
+    stridepc_hwp->stride_table[idx].stride      = 0;    //BO has no stride, change it >stride
     stridepc_hwp->stride_table[idx].train_num   = 0;
     stridepc_hwp->stride_table[idx].pref_sent   = 0;
     stridepc_hwp->stride_table[idx].last_addr   = (PREF_STRIDEPC_USELOADADDR ?
@@ -195,146 +256,126 @@ void pref_stridepc_umlc_miss(uns8 proc_id, Addr lineAddr, Addr loadPC,
                                                    lineIndex);
     stridepc_hwp->stride_table[idx].load_addr   = loadPC;
     stridepc_hwp->stride_table[idx].last_access = cycle_count;
-    return;
+    // return;    // return commented out because we are not using stride logistic
   }
 
+  // comment out candi
   entry              = &stridepc_hwp->stride_table[idx];
   entry->last_access = cycle_count;
   stride = (PREF_STRIDEPC_USELOADADDR ? (lineAddr - entry->last_addr) :
                                         (lineIndex - entry->last_addr));
 
-  if(!entry->trained) {
-    // Now let's train
-    if(stride == 0)
-      return;
-    if(entry->stride != stride) {
-      entry->stride    = stride;
-      entry->train_num = 1;
-    } else {
-      entry->train_num++;
-    }
-    if(entry->train_num == PREF_STRIDEPC_TRAINNUM) {
-      entry->trained     = TRUE;
-      entry->start_index = (PREF_STRIDEPC_USELOADADDR ? lineAddr : lineIndex);
-      entry->pref_last_index = entry->start_index +
-                               (PREF_STRIDEPC_STARTDIS * entry->stride);
-      entry->pref_sent = 0;
-    }
-  } else {
-    Addr pref_index;
-    Addr curr_idx = (PREF_STRIDEPC_USELOADADDR ? lineAddr : lineIndex);
+  
+  Addr pref_index;
+  //Addr curr_idx = (PREF_STRIDEPC_USELOADADDR ? lineAddr : lineIndex);
 
-    if(entry->pref_sent)
-      entry->pref_sent--;
+  // if(  ((curr_idx >= entry->start_index) && (curr_idx <= entry->pref_last_index)) ||        //filter changed for BO
+  //       ((curr_idx <= entry->start_index) && (curr_idx >= entry->pref_last_index))  ) {
+  // all good. continue sending out prefetches
+  for(ii = 0; ii < PREF_STRIDEPC_DEGREE; ii++) {
+    
+    //the original stridepc prefetch index
+    //pref_index = entry->pref_last_index + entry->stride;
 
-    if((stride % entry->stride == 0) &&
-       (((stride > 0) && (curr_idx >= entry->start_index) &&
-         (curr_idx <= entry->pref_last_index)) ||
-        ((stride < 0) && (curr_idx <= entry->start_index) &&
-         (curr_idx >= entry->pref_last_index)))) {
-      // all good. continue sending out prefetches
-      for(ii = 0; (ii < PREF_STRIDEPC_DEGREE &&
-                   entry->pref_sent < PREF_STRIDEPC_DISTANCE);
-          ii++, entry->pref_sent++) {
-        pref_index = entry->pref_last_index + entry->stride;
+    //the BO prefetch index
+    if (best_offset > 0){    // <64 because there are 64 lines in a page according to our setting
+      pref_index = lineIndex + best_offset;
+    
 
-        ASSERT(proc_id,
-               proc_id == (pref_index >> (58 - LOG2(DCACHE_LINE_SIZE))));
+      ASSERT(proc_id,
+            proc_id == (pref_index >> (58 - LOG2(DCACHE_LINE_SIZE))));
 
-          if(stridepc_hwp->type == UMLC){ if(!pref_addto_umlc_req_queue(proc_id,
-                (PREF_STRIDEPC_USELOADADDR ?
-                (pref_index >> LOG2(DCACHE_LINE_SIZE)) :
-                    pref_index),
-              stridepc_hwp->hwp_info->id)){
-            break;}}
-          else{
-            if(!pref_addto_ul1req_queue(proc_id,
-                (PREF_STRIDEPC_USELOADADDR ?
-                (pref_index >> LOG2(DCACHE_LINE_SIZE)) :
-                    pref_index),
-              stridepc_hwp->hwp_info->id))  // FIXME
-          break;   }
+      if(stridepc_hwp->type == UMLC){ if(!pref_addto_umlc_req_queue(proc_id,
+            (PREF_STRIDEPC_USELOADADDR ?
+            (pref_index >> LOG2(DCACHE_LINE_SIZE)) :
+                pref_index),
+          stridepc_hwp->hwp_info->id)){
+        break;}
+      }else{
+        if(!pref_addto_ul1req_queue(proc_id,
+            (PREF_STRIDEPC_USELOADADDR ?
+            (pref_index >> LOG2(DCACHE_LINE_SIZE)) :
+                pref_index),
+          stridepc_hwp->hwp_info->id))  // FIXME
+      break;   }
 
-                                               // q is full
-        entry->pref_last_index = pref_index;
-      }
-    } else {
-      // stride has changed...
-      // lets retrain
-      entry->trained   = FALSE;
-      entry->train_num = 1;
+                                            // q is full
+      //entry->pref_last_index = pref_index;
     }
   }
   entry->last_addr = (PREF_STRIDEPC_USELOADADDR ? lineAddr : lineIndex);
-}
-*/
 
-void pref_offsetpc_train(Pref_OffsetPC* offsetpc_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit) {
-    int ii;
-    int idx = -1;
-
-    Addr lineIndex = lineAddr >> LOG2(DCACHE_LINE_SIZE);
-    OffsetPC_Table_Entry* entry = NULL;
-
-    if (loadPC == 0) {
-        return;  // No point hashing on a null address
-    }
-
-    // Search for an existing entry
-    for (ii = 0; ii < PREF_OFFSETPC_TABLE_N; ii++) {
-        if (offsetpc_hwp->offset_table[ii].load_addr == loadPC && offsetpc_hwp->offset_table[ii].valid) {
-            idx = ii;
-            break;
-        }
-    }
-
-    // Create a new entry if not found
-    if (idx == -1) {
-        for (ii = 0; ii < PREF_OFFSETPC_TABLE_N; ii++) {
-            if (!offsetpc_hwp->offset_table[ii].valid) {
-                idx = ii;
-                break;
-            }
-        }
-        offsetpc_hwp->offset_table[idx].load_addr = loadPC;
-        offsetpc_hwp->offset_table[idx].last_addr = lineAddr;
-        offsetpc_hwp->offset_table[idx].train_num = 0;
-        offsetpc_hwp->offset_table[idx].valid = TRUE;
-        offsetpc_hwp->offset_table[idx].trained = FALSE;
-        return;
-    }
-
-    entry = &offsetpc_hwp->offset_table[idx];
-
-    // Offset training logic
-    if (entry->train_num == 0) {
-        entry->offset = lineAddr - entry->last_addr;
-    } else {
-        Addr new_offset = lineAddr - entry->last_addr;
-        if (new_offset == entry->offset) {
-            entry->train_num++;
-        } else {
-            // Offset changed, retrain
-            entry->train_num = 1;
-            entry->offset = new_offset;
-        }
-    }
-
-    // Check if training is complete
-    if (entry->train_num >= PREF_OFFSETPC_TRAINNUM) {
-        entry->trained = TRUE;
-    }
-
-    // Issue prefetch if trained
-    if (entry->trained) {
-        Addr pref_index = entry->last_addr + entry->offset;
-        if (entry->pref_sent < PREF_OFFSETPC_DEGREE) {
-            // Issue prefetch request
-            pref_addto_req_queue(proc_id, pref_index, offsetpc_hwp->hwp_info->id);
-            entry->pref_sent++;
-            entry->pref_last_index = pref_index;
-        }
-    }
-    entry->last_addr = lineAddr;  // Update last accessed address
 }
 
+//************************************************************************//
+//***************************  STRIDEPC TRAIN  ***************************//
+//************************************************************************//
+
+// void pref_offsetpc_train(Pref_OffsetPC* offsetpc_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit) {
+//     int ii;
+//     int idx = -1;
+
+//     Addr lineIndex = lineAddr >> LOG2(DCACHE_LINE_SIZE);
+//     OffsetPC_Table_Entry* entry = NULL;
+
+//     if (loadPC == 0) {
+//         return;  // No point hashing on a null address
+//     }
+
+//     // Search for an existing entry
+//     for (ii = 0; ii < PREF_OFFSETPC_TABLE_N; ii++) {
+//         if (offsetpc_hwp->offset_table[ii].load_addr == loadPC && offsetpc_hwp->offset_table[ii].valid) {
+//             idx = ii;
+//             break;
+//         }
+//     }
+
+//     // Create a new entry if not found
+//     if (idx == -1) {
+//         for (ii = 0; ii < PREF_OFFSETPC_TABLE_N; ii++) {
+//             if (!offsetpc_hwp->offset_table[ii].valid) {
+//                 idx = ii;
+//                 break;
+//             }
+//         }
+//         offsetpc_hwp->offset_table[idx].load_addr = loadPC;
+//         offsetpc_hwp->offset_table[idx].last_addr = lineAddr;
+//         offsetpc_hwp->offset_table[idx].train_num = 0;
+//         offsetpc_hwp->offset_table[idx].valid = TRUE;
+//         offsetpc_hwp->offset_table[idx].trained = FALSE;
+//         return;
+//     }
+
+//     entry = &offsetpc_hwp->offset_table[idx];
+
+//     // Offset training logic
+//     if (entry->train_num == 0) {
+//         entry->offset = lineAddr - entry->last_addr;
+//     } else {
+//         Addr new_offset = lineAddr - entry->last_addr;
+//         if (new_offset == entry->offset) {
+//             entry->train_num++;
+//         } else {
+//             // Offset changed, retrain
+//             entry->train_num = 1;
+//             entry->offset = new_offset;
+//         }
+//     }
+
+//     // Check if training is complete
+//     if (entry->train_num >= PREF_OFFSETPC_TRAINNUM) {
+//         entry->trained = TRUE;
+//     }
+
+//     // Issue prefetch if trained
+//     if (entry->trained) {
+//         Addr pref_index = entry->last_addr + entry->offset;
+//         if (entry->pref_sent < PREF_OFFSETPC_DEGREE) {
+//             // Issue prefetch request
+//             pref_addto_req_queue(proc_id, pref_index, offsetpc_hwp->hwp_info->id);
+//             entry->pref_sent++;
+//             entry->pref_last_index = pref_index;
+//         }
+//     }
+//     entry->last_addr = lineAddr;  // Update last accessed address
+// }
